@@ -133,6 +133,105 @@ app.post("/api/oxapay/webhook", async (req, res) => {
   }
 });
 
+// --- Withdrawal Request ---
+app.post("/api/oxapay/withdraw", async (req, res) => {
+  try {
+    console.log("💡 Withdrawal request:", req.body);
+
+    const { amount, wallet_address, user_id } = req.body;
+    if (!amount || !wallet_address || !user_id) {
+      return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
+
+    // Check user balance
+    const { data: userData, error: userError } = await supabase
+      .from("user_profiles")
+      .select("balance")
+      .eq("id", user_id)
+      .single();
+
+    if (userError || !userData) {
+      return res.status(400).json({ success: false, error: "User not found" });
+    }
+
+    if (userData.balance < Number(amount)) {
+      return res.status(400).json({ success: false, error: "Insufficient balance" });
+    }
+
+    // Deduct balance immediately
+    const { error: deductError } = await supabase.rpc("decrement_user_balance", {
+      p_user_id: user_id,
+      p_amount: Number(amount),
+    });
+
+    if (deductError) {
+      console.error("❌ Failed to deduct balance:", deductError);
+      return res.status(500).json({ success: false, error: "Failed to process withdrawal" });
+    }
+
+    // Request payout from OxaPay
+    const payoutPayload = {
+      address: wallet_address,
+      amount: Number(amount),
+      currency: "USDT",
+      network: "TRX",
+    };
+
+    const payoutResponse = await axios.post(
+      "https://api.oxapay.com/merchants/request/whitelist/payout",
+      payoutPayload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "merchant-api-key": process.env.OXAPAY_MERCHANT_API_KEY,
+        },
+      }
+    );
+
+    const payoutData = payoutResponse.data;
+
+    // Record transaction
+    const { error: insertError } = await supabase.from("transactions").insert([{
+      user_id,
+      type: "withdrawal",
+      amount: Number(amount),
+      status: payoutData.result ? "completed" : "failed",
+      wallet_address,
+    }]);
+
+    if (insertError) console.error("❌ Failed to insert transaction:", insertError);
+
+    if (!payoutData.result) {
+      // Refund balance if payout failed
+      await supabase.rpc("increment_user_balance", {
+        p_user_id: user_id,
+        p_amount: Number(amount),
+      });
+      return res.status(400).json({ success: false, error: payoutData.message || "Payout failed" });
+    }
+
+    res.json({
+      success: true,
+      message: "Withdrawal processed successfully",
+      track_id: payoutData.track_id,
+    });
+  } catch (err) {
+    console.error("❌ Withdrawal Error:", err.response?.data || err.message);
+
+    // Attempt to refund balance on error
+    try {
+      await supabase.rpc("increment_user_balance", {
+        p_user_id: req.body.user_id,
+        p_amount: Number(req.body.amount),
+      });
+    } catch (refundErr) {
+      console.error("❌ Failed to refund balance:", refundErr);
+    }
+
+    res.status(500).json({ success: false, error: err.response?.data?.message || err.message });
+  }
+});
+
 // --- Start server ---
 const PORT = 8080;
 app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));

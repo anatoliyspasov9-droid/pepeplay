@@ -1,0 +1,51 @@
+SETUP INSTRUCTIONS
+==================
+
+The application is now fixed and ready to run!
+
+IMPORTANT: Configure your .env file with the following variables:
+
+1. VITE_SUPABASE_URL - Already set
+2. VITE_SUPABASE_ANON_KEY - Already set
+3. SUPABASE_SERVICE_ROLE_KEY - Get this from your Supabase project settings
+4. NEXT_PUBLIC_BASE_URL - Already set to http://localhost:5173
+5. OXAPAY_MERCHANT_API_KEY - Get this from your OxaPay merchant dashboard
+
+HOW TO RUN:
+-----------
+
+1. Start the backend server:
+   node server.js
+
+2. In a new terminal, start the frontend:
+   npm run dev
+
+The frontend will be available at: http://localhost:5173
+The backend API will be available at: http://localhost:8080
+
+FEATURES IMPLEMENTED:
+--------------------
+
+✅ Deposit System - Using OxaPay payment gateway (USDT/TRX)
+✅ Withdrawal System - Using OxaPay payout API (USDT/TRX)
+✅ Balance management with database functions
+✅ Transaction tracking
+✅ Webhook handling for payment confirmations
+✅ Error handling and balance refunds on failures
+
+FIXED ISSUES:
+-------------
+
+✅ Removed conflicting Next.js API routes
+✅ Fixed environment variable naming (NEXT_PUBLIC -> VITE)
+✅ Added missing database functions (increment/decrement balance)
+✅ Implemented complete withdrawal flow
+✅ Build errors resolved
+
+NOTES:
+------
+
+- All API calls go through the Express server at port 8080
+- Vite proxies /api requests to the backend automatically
+- OxaPay webhooks should point to: YOUR_DOMAIN/api/oxapay/webhook
+- Database migrations are ready in supabase/migrations/
