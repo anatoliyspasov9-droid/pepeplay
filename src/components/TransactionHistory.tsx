@@ -17,40 +17,43 @@ export const TransactionHistory = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
   const fetchTransactions = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+        .from("transactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
         .limit(10);
 
       if (error) throw error;
 
-      const formattedTransactions: Transaction[] = (data || []).map(t => ({
+      const formattedTransactions: Transaction[] = (data || []).map((t) => ({
         id: t.id,
         type: t.type,
         amount: Number(t.amount),
-        status: t.status || 'pending',
+        status: t.status || "pending",
         date: new Date(t.created_at).toLocaleDateString(),
-        txHash: t.transaction_hash || undefined
+        txHash: t.transaction_hash || undefined,
       }));
 
       setTransactions(formattedTransactions);
     } catch (error) {
-      console.error('Error fetching transactions:', error);
+      console.error("Error fetching transactions:", error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Poll transactions every 2 seconds to show new pending deposits
+  useEffect(() => {
+    fetchTransactions();
+    const interval = setInterval(fetchTransactions, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getIcon = (type: string) => {
     switch (type) {
@@ -58,8 +61,8 @@ export const TransactionHistory = () => {
         return <ArrowDownLeft className="w-5 h-5 text-primary" />;
       case "withdrawal":
         return <ArrowUpRight className="w-5 h-5 text-destructive" />;
-      case "referral_bonus":
       case "game_earning":
+      case "referral_bonus":
         return <Users className="w-5 h-5 text-earnings-gold" />;
       default:
         return null;
@@ -105,7 +108,11 @@ export const TransactionHistory = () => {
                   {getIcon(transaction.type)}
                 </div>
                 <div>
-                  <p className="font-semibold capitalize">{transaction.type.replace('_', ' ')}</p>
+                  <p className="font-semibold capitalize">
+                    {transaction.type === "game_earning"
+                      ? "Game Earnings"
+                      : transaction.type.replace("_", " ")}
+                  </p>
                   <p className="text-xs text-muted-foreground">{transaction.date}</p>
                   {transaction.txHash && (
                     <p className="text-xs text-muted-foreground font-mono">{transaction.txHash}</p>
@@ -115,7 +122,11 @@ export const TransactionHistory = () => {
 
               <div className="text-right flex items-center gap-3">
                 <div>
-                  <p className={`font-bold ${transaction.type === "withdrawal" ? "text-destructive" : "text-earnings-gold"}`}>
+                  <p
+                    className={`font-bold ${
+                      transaction.type === "withdrawal" ? "text-destructive" : "text-earnings-gold"
+                    }`}
+                  >
                     {transaction.type === "withdrawal" ? "-" : "+"}${transaction.amount.toFixed(2)}
                   </p>
                 </div>
